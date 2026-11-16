@@ -12,6 +12,7 @@
 - 记录不存在时可自动创建
 - 相同配置不重复更新
 - 提供 systemd timer 和 cron 两种定时方式
+- 提供独立卸载脚本
 - API Token、Zone ID 与脚本分开保存
 
 ## 文件说明
@@ -19,6 +20,7 @@
 | 文件 | 用途 |
 | --- | --- |
 | `cloudflare-ddns.sh` | DDNS 主脚本 |
+| `cloudflare-ddns-uninstall.sh` | 卸载脚本 |
 | `cloudflare-ddns.env.example` | 配置文件样例 |
 | `cloudflare-ddns.service` | systemd 服务 |
 | `cloudflare-ddns.timer` | 每五分钟运行一次的 systemd 定时器 |
@@ -78,13 +80,14 @@ Zone ID 通常是 32 个字符。不要把 Account ID 当成 Zone ID。Cloudflar
 
 ## 4. 下载和安装
 
-在 VPS 上创建一个安装目录，并下载四个文件：
+在 VPS 上创建一个安装目录，并下载五个文件：
 
 ```bash
 mkdir -p "$HOME/cloudflare-ddns-install"
 cd "$HOME/cloudflare-ddns-install"
 
 curl -fLO "https://raw.githubusercontent.com/CodeManXposed/Cloudflare-ddns/main/cloudflare-ddns.sh"
+curl -fLO "https://raw.githubusercontent.com/CodeManXposed/Cloudflare-ddns/main/cloudflare-ddns-uninstall.sh"
 curl -fLO "https://raw.githubusercontent.com/CodeManXposed/Cloudflare-ddns/main/cloudflare-ddns.env.example"
 curl -fLO "https://raw.githubusercontent.com/CodeManXposed/Cloudflare-ddns/main/cloudflare-ddns.service"
 curl -fLO "https://raw.githubusercontent.com/CodeManXposed/Cloudflare-ddns/main/cloudflare-ddns.timer"
@@ -92,10 +95,11 @@ curl -fLO "https://raw.githubusercontent.com/CodeManXposed/Cloudflare-ddns/main/
 ls -lh
 ```
 
-`ls -lh` 应显示以下四个文件：
+`ls -lh` 应显示以下五个文件：
 
 ```text
 cloudflare-ddns.sh
+cloudflare-ddns-uninstall.sh
 cloudflare-ddns.env.example
 cloudflare-ddns.service
 cloudflare-ddns.timer
@@ -106,13 +110,16 @@ cloudflare-ddns.timer
 ```bash
 cd "$HOME/cloudflare-ddns-install"
 sudo install -m 0755 cloudflare-ddns.sh /usr/local/sbin/cloudflare-ddns
+sudo install -m 0755 cloudflare-ddns-uninstall.sh /usr/local/sbin/cloudflare-ddns-uninstall
 sudo install -m 0600 cloudflare-ddns.env.example /etc/cloudflare-ddns.env
 ```
 
 确认权限：
 
 ```bash
-ls -l /usr/local/sbin/cloudflare-ddns /etc/cloudflare-ddns.env
+ls -l /usr/local/sbin/cloudflare-ddns \
+  /usr/local/sbin/cloudflare-ddns-uninstall \
+  /etc/cloudflare-ddns.env
 ```
 
 `/etc/cloudflare-ddns.env` 应只有 root 可以读写。
@@ -444,23 +451,40 @@ sudo systemctl restart cloudflare-ddns.timer
 
 ## 13. 卸载
 
-使用 systemd timer 时先停止并禁用：
+执行卸载脚本：
 
 ```bash
-sudo systemctl disable --now cloudflare-ddns.timer
+sudo /usr/local/sbin/cloudflare-ddns-uninstall
 ```
 
-删除安装的文件：
+脚本会执行以下操作：
+
+- 停止并禁用 `cloudflare-ddns.timer`
+- 停止 `cloudflare-ddns.service`
+- 删除 systemd 服务和定时器文件
+- 删除 root crontab 中的 Cloudflare DDNS 任务，保留其他 cron 项
+- 删除 `/usr/local/sbin/cloudflare-ddns`
+- 删除 `/etc/cloudflare-ddns.env`
+- 删除 `/var/log/cloudflare-ddns.log`
+- 最后删除卸载脚本本身
+
+需要保留 API Token 和域名配置时执行：
 
 ```bash
-sudo rm -f /usr/local/sbin/cloudflare-ddns
-sudo rm -f /etc/cloudflare-ddns.env
-sudo rm -f /etc/systemd/system/cloudflare-ddns.service
-sudo rm -f /etc/systemd/system/cloudflare-ddns.timer
-sudo systemctl daemon-reload
+sudo /usr/local/sbin/cloudflare-ddns-uninstall --keep-config
 ```
 
-使用 cron 时还需要执行 `sudo crontab -e`，删除对应的定时任务。
+旧版本没有安装卸载脚本时，可以临时下载并执行：
+
+```bash
+curl -fsSL \
+  "https://raw.githubusercontent.com/CodeManXposed/Cloudflare-ddns/main/cloudflare-ddns-uninstall.sh" \
+  -o /tmp/cloudflare-ddns-uninstall.sh
+
+sudo bash /tmp/cloudflare-ddns-uninstall.sh
+```
+
+卸载脚本不会删除 `~/cloudflare-ddns-install` 下载目录。确认目录中没有需要保留的文件后，可以手动删除。
 
 卸载脚本不会删除 Cloudflare 中已经创建的 DNS 记录。如需删除记录，请在 Cloudflare Dashboard 中手动处理。
 
