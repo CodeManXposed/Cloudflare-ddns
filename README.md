@@ -78,16 +78,35 @@ Zone ID 通常是 32 个字符。不要把 Account ID 当成 Zone ID。Cloudflar
 
 ## 4. 下载和安装
 
-在 VPS 上执行：
+在 VPS 上创建一个安装目录，并下载四个文件：
 
 ```bash
-REPO_RAW="https://raw.githubusercontent.com/CodeManXposed/Cloudflare-ddns/main"
+mkdir -p "$HOME/cloudflare-ddns-install"
+cd "$HOME/cloudflare-ddns-install"
 
-curl -fsSL "$REPO_RAW/cloudflare-ddns.sh" -o /tmp/cloudflare-ddns.sh
-curl -fsSL "$REPO_RAW/cloudflare-ddns.env.example" -o /tmp/cloudflare-ddns.env
+curl -fLO "https://raw.githubusercontent.com/CodeManXposed/Cloudflare-ddns/main/cloudflare-ddns.sh"
+curl -fLO "https://raw.githubusercontent.com/CodeManXposed/Cloudflare-ddns/main/cloudflare-ddns.env.example"
+curl -fLO "https://raw.githubusercontent.com/CodeManXposed/Cloudflare-ddns/main/cloudflare-ddns.service"
+curl -fLO "https://raw.githubusercontent.com/CodeManXposed/Cloudflare-ddns/main/cloudflare-ddns.timer"
 
-sudo install -m 0755 /tmp/cloudflare-ddns.sh /usr/local/sbin/cloudflare-ddns
-sudo install -m 0600 /tmp/cloudflare-ddns.env /etc/cloudflare-ddns.env
+ls -lh
+```
+
+`ls -lh` 应显示以下四个文件：
+
+```text
+cloudflare-ddns.sh
+cloudflare-ddns.env.example
+cloudflare-ddns.service
+cloudflare-ddns.timer
+```
+
+文件确认无误后安装脚本和配置样例：
+
+```bash
+cd "$HOME/cloudflare-ddns-install"
+sudo install -m 0755 cloudflare-ddns.sh /usr/local/sbin/cloudflare-ddns
+sudo install -m 0600 cloudflare-ddns.env.example /etc/cloudflare-ddns.env
 ```
 
 确认权限：
@@ -239,13 +258,25 @@ A 记录未变化: vps.example.com -> 198.51.100.20
 
 ## 8. 使用 systemd timer
 
-下载并安装 systemd 文件：
+进入安装目录并安装 systemd 文件：
 
 ```bash
-REPO_RAW="https://raw.githubusercontent.com/CodeManXposed/Cloudflare-ddns/main"
+cd "$HOME/cloudflare-ddns-install"
+sudo install -m 0644 cloudflare-ddns.service /etc/systemd/system/cloudflare-ddns.service
+sudo install -m 0644 cloudflare-ddns.timer /etc/systemd/system/cloudflare-ddns.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now cloudflare-ddns.timer
+```
 
-curl -fsSL "$REPO_RAW/cloudflare-ddns.service" -o /tmp/cloudflare-ddns.service
-curl -fsSL "$REPO_RAW/cloudflare-ddns.timer" -o /tmp/cloudflare-ddns.timer
+如果安装目录已经删除，可以重新下载 systemd 文件：
+
+```bash
+curl -fsSL \
+  "https://raw.githubusercontent.com/CodeManXposed/Cloudflare-ddns/main/cloudflare-ddns.service" \
+  -o /tmp/cloudflare-ddns.service
+curl -fsSL \
+  "https://raw.githubusercontent.com/CodeManXposed/Cloudflare-ddns/main/cloudflare-ddns.timer" \
+  -o /tmp/cloudflare-ddns.timer
 
 sudo install -m 0644 /tmp/cloudflare-ddns.service /etc/systemd/system/cloudflare-ddns.service
 sudo install -m 0644 /tmp/cloudflare-ddns.timer /etc/systemd/system/cloudflare-ddns.timer
